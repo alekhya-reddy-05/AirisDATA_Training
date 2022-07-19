@@ -6,18 +6,18 @@ case class Rental_data(id : Int, property_type : String, room_type : String,bath
 case class Location_data(id:Int , city:String , state:String , country:String , pincode:Int)
 object ProjectSpark extends App {
 
-  def getDiscount(price :Int)={
+  def getDiscount(price :Int):Double ={
     //To calculate discount
     if(price>=200 && price<300){
-      price*0.10;
+      return "%06.2f".format(price*0.05).toDouble
     }else if(price>=300 && price<500){
-      price*0.15;
+      return "%06.2f".format(price*0.10).toDouble
     }else if(price>=500 && price<1000){
-      price*0.20;
+      return "%06.2f".format(price*0.15).toDouble
     }else if(price>=1000){
-      price*0.30;
+     return "%06.2f".format(price*0.20).toDouble
     }else{
-      0.0;
+     return 0.0;
     }
   }
   val sparkConf=new SparkConf()
@@ -59,6 +59,8 @@ object ProjectSpark extends App {
 
   //Adding column names
   val df_columns_location = df_location.toDF("id","city","state","country","pincode")
+  df_columns_location.printSchema();
+
 
   //creating string expression udf for calculating discount
   spark.udf.register("discountFunction",getDiscount(_:Int):Double)
@@ -71,7 +73,19 @@ object ProjectSpark extends App {
 
   //Dataframe to Dataset
   import spark.implicits._
-  val ds_rental=df_columns_rental.as[Rental_data]
+  val ds_rental=df_columns_rental.as[Rental_data1]
   ds_rental.show();
   ds_rental.filter(x=>x.minimum_nights>15).show()
+
+  //Query to find the states that have rentals in more than 1 city
+  df_columns_location.createOrReplaceTempView("loc")
+  spark.sql("select state,count(state) as no_of_cities from loc group by state having count(state)>1 ").show()
+
+  //JOINS-  Displaying minimum, maximum and average price, city of rentals in each location.
+  df_rental_final.createOrReplaceTempView("rental")
+  spark.sql("select r.location_id,l.city,l.state,l.pincode,count(r.location_id) from rental r join loc l on r.location_id=l.id group by r.location_id,l.city,l.state,l.pincode order by r.location_id").show()
+
+  spark.sql("select id,property_type,room_type,price,Discount,FinalPrice from rental where Discount>=100").show()
+
+
 }
